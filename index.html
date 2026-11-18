@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sift Point</title>
+<meta name="apple-mobile-web-app-title" content="Sift Point">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#102A43">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--bg:#102A43;--text:#f4f7ff;--muted:#b9c7de;--accent:#ffd166}
+body{margin:0;min-height:100svh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;padding:0 16px;box-sizing:border-box}
+main{max-width:360px;text-align:center}
+img{width:96px;height:96px;border-radius:22px}
+h1{font-size:22px;margin:14px 0 6px}
+p{color:var(--muted);margin:6px 0}
+a.btn{display:inline-block;margin-top:16px;padding:11px 20px;border-radius:12px;background:var(--accent);color:#102A43;font-weight:700;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+<img src="apple-touch-icon.png" alt="">
+<h1>Sift Point</h1>
+<p id="hint">在 Safari 点“分享” → “添加到主屏幕”，图标即为 Sift Point。</p>
+<a class="btn" href="https://claude.ai/artifact/XYotV8xEyGL2ZEnFUpNtgi">打开投资看板</a>
+</main>
+<script>
+// 从主屏幕图标启动时直接跳转到看板；在 Safari 中打开时停留本页，便于添加到主屏幕。
+var target = "https://claude.ai/artifact/XYotV8xEyGL2ZEnFUpNtgi";
+var standalone = window.navigator.standalone === true ||
+  (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+if (standalone) { window.location.replace(target); }
+</script>
+</body>
+</html>
