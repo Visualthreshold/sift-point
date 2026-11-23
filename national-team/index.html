@@ -120,6 +120,12 @@ td.n,th.n{text-align:right}
 .evd dt{color:var(--muted)}
 .toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;border-radius:6px;font-size:13px;z-index:30}
 section[hidden]{display:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.chips:empty{display:none}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 10px;background:var(--panel2);color:var(--muted);font-size:12.5px;cursor:pointer;user-select:none}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.chip.on{color:var(--fg);border-color:var(--accent);background:var(--panel)}
+.chip .x{border:0;background:none;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
+.chip .x:hover{color:var(--bad)}
 .vspick{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted);margin:0 0 6px}
 .vspick b{color:var(--fg);font-weight:500;margin-right:2px}
 .vspick label{display:inline-flex;gap:4px;align-items:center;cursor:pointer}
@@ -184,6 +190,7 @@ details.fold>summary .eyebrow{display:block}
         <label>视图 <select id="mode"><option value="kline">K 线（蜡烛图）</option><option value="line">收盘线（实线）</option><option value="cum">累计涨跌</option></select></label>
       </div>
       <div class="vspick" id="vsPick"></div>
+      <div class="chips" id="secChips"></div>
       <div class="legend" id="legend" style="display:none"></div>
       <div class="readout" id="readout">—</div>
       <div id="chMain" class="chartbox" style="height:420px"></div>
@@ -751,9 +758,25 @@ function renderVsPick() {
     cb.addEventListener("change", () => { S.vsg = cb.checked ? vsGroups().filter(x => x === g || S.vsg.includes(x)) : S.vsg.filter(x => x !== g); if (!S.vsg.length) S.vsg = ["全部"]; refresh(); });
     box.append(el("label", {title: vsName(g)}, cb, el("i", {style: `background:${vsColor(g)}`}), g === "全部" ? "全部宽基" : g)); }
 }
-function renderTags() { const t = $("#tags"); t.textContent = "";
-  for (const c of S.cmp.filter(c => c !== S.idx)) t.append(el("span", {class: "tag"}, "比较：" + (D.idx[c]?.name || c), el("button", {"aria-label": "移除", text: "×", onclick: () => { S.cmp = S.cmp.filter(z => z !== c); refresh(); }})));
-  for (const c of S.adds) t.append(el("span", {class: "tag"}, (SEC[c]?.name || c) + " " + c, el("button", {"aria-label": "移除 " + c, text: "×", onclick: () => { S.adds = S.adds.filter(z => z !== c); refresh(); }}))); }
+let RECENT = (() => { try { return JSON.parse(localStorage.getItem("nt_recent") || "[]"); } catch (e) { return []; } })();
+function saveRecent() { try { localStorage.setItem("nt_recent", JSON.stringify(RECENT.slice(0, 30))); } catch (e) { /* 无痕模式等情况下不记忆 */ } }
+function hitOf(key) { const [cc, mk] = key.split("."); return D.search.find(r => r[0] === cc && (mk ? r[2] === mk && r[3] !== "index" : r[3] !== "index")); }
+/* 参与比较的标的：每只一个开关按钮，点一下画进主图，再点一下撤下；× 从列表删除 */
+function renderTags() {
+  $("#tags").textContent = "";
+  const box = $("#secChips"); box.textContent = "";
+  for (const c of S.adds) if (!RECENT.includes(c)) RECENT.unshift(c);
+  saveRecent();
+  let ai = 0; const colOf = {}; for (const c of S.adds) colOf[c] = idxColor(c, ai++);
+  const chip = (label, on, col, onToggle, onDrop) => { const x = el("button", {class: "x", "aria-label": "从列表删除 " + label, text: "×"}); x.addEventListener("click", e => { e.stopPropagation(); onDrop(); });
+    const b = el("span", {class: "chip" + (on ? " on" : ""), role: "button", tabindex: "0", "aria-pressed": String(on), title: on ? "点击从图中撤下" : "点击加入图表比较"}, el("i", {style: on ? `background:${col}` : ""}), label, x);
+    b.addEventListener("click", onToggle); b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }); box.append(b); };
+  for (const c of S.cmp.filter(c => c !== S.idx)) chip(D.idx[c]?.name || c, true, idxColor(c, 0), () => { S.cmp = S.cmp.filter(z => z !== c); refresh(); }, () => { S.cmp = S.cmp.filter(z => z !== c); refresh(); });
+  for (const c of RECENT) { const h = hitOf(c); const name = SEC[c]?.name || (h && h[1]) || c; const on = S.adds.includes(c);
+    chip(`${name} ${c.split(".")[0]}`, on, colOf[c], async () => { if (on) { S.adds = S.adds.filter(z => z !== c); refresh(); return; }
+        if (!SEC[c]) { if (!h || !(await loadSec({code: h[0], name: h[1], market: h[2], kind: h[3], file: h[4]}))) return; } S.adds.push(c); refresh(); },
+      () => { RECENT = RECENT.filter(z => z !== c); S.adds = S.adds.filter(z => z !== c); saveRecent(); refresh(); }); }
+}
 
 /* ---------- 刷新 ---------- */
 function syncControls() {
