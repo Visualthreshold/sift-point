@@ -469,7 +469,7 @@ function yAxis(gi, name, pos, extra = {}) { const C = colors(); return Object.as
 
 function priceSeries(name, s, ks, gi, yi, upCol, downCol, lineCol, hollowDown) {
   if (S.mode === "line") return {name: name + " · 收盘线", type: "line", xAxisIndex: gi, yAxisIndex: yi, data: ks.map(k => lastVal(s.c, k)), showSymbol: false, lineStyle: {width: 1.5, color: lineCol}, itemStyle: {color: lineCol}};
-  return {name: name + " · K 线", type: "candlestick", xAxisIndex: gi, yAxisIndex: yi, data: ks.map(k => aggOHLC(s, k) || "-"),
+  return {name: name + " · K 线", type: "candlestick", large: false, progressive: 0, barMaxWidth: 14, xAxisIndex: gi, yAxisIndex: yi, data: ks.map(k => aggOHLC(s, k) || "-"),
     itemStyle: hollowDown ? {color: upCol, color0: "transparent", borderColor: upCol, borderColor0: upCol} : {color: upCol, color0: downCol, borderColor: upCol, borderColor0: downCol}};
 }
 function renderMain(ks, x) {
@@ -496,7 +496,7 @@ function renderMain(ks, x) {
         series.push({name: `${g} ETF 份额`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.y, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${shName(g)} · 亿份（已扣除拆分合并、新产品上市造成的跳变，按今日份额口径）· 左轴`]); }
     } else if (S.overlay === "ntk") {
       ys.push(yAxis(g0, "汇金估算持仓（亿元）", "left", {splitLine: {show: false}}));
-      series.push({name: "汇金估算持仓 K 线", type: "candlestick", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => aggOHLC(n, k) || "-"), itemStyle: {color: "transparent", color0: C.nt, borderColor: C.nt, borderColor0: C.nt}, barMaxWidth: 10}); leg.push([C.nt, "汇金估算持仓 K 线（模型估算）· 左轴"]);
+      series.push({name: "汇金估算持仓 K 线", type: "candlestick", large: false, progressive: 0, xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => aggOHLC(n, k) || "-"), itemStyle: {color: "transparent", color0: C.nt, borderColor: C.nt, borderColor0: C.nt}, barMaxWidth: 10}); leg.push([C.nt, "汇金估算持仓 K 线（模型估算）· 左轴"]);
       if (md) { series.push({name: "汇金持仓市值中位线", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(md.m, k))), showSymbol: false, lineStyle: {width: 1.4, type: "dashed", color: C.nt}}); leg.push([C.nt, `汇金持仓市值中位线（${medLabel()}）`]); }
     }
   } else {
