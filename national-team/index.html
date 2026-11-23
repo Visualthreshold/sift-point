@@ -189,7 +189,7 @@ details.fold>summary .eyebrow{display:block}
           <option value="M3">近 3 个月</option><option value="M6">近 6 个月</option><option value="YTD">年初至今</option><option value="Y1" selected>近 1 年</option><option value="Y3">近 3 年</option><option value="Y5">近 5 年</option><option value="Y10">近 10 年</option><option value="ALL">2008 年至今</option><option value="CUSTOM">自选日期</option>
         </select></label>
         <span id="customRange" hidden><input type="date" id="from" aria-label="起始日"> – <input type="date" id="to" aria-label="截止日"></span>
-        <label>叠加 <select id="overlay"><option value="vs">宽基 ETF 成交量强度</option><option value="sh">ETF 份额 + 份额/指数背离度</option><option value="ntk">汇金估算持仓 K 线</option><option value="none">不叠加</option></select></label>
+        <label>叠加 <select id="overlay"><option value="sh">ETF 份额 + 份额/指数背离度</option><option value="vs">宽基 ETF 成交量强度</option><option value="ntk">汇金估算持仓 K 线</option><option value="none">不叠加</option></select></label>
         <label>综合中位线 <select id="medType"><option value="exp">全历史</option><option value="10">滚动 10 日</option><option value="15">滚动 15 日</option><option value="20">滚动 20 日</option><option value="60">滚动 60 日</option><option value="120">滚动 120 日</option><option value="250">滚动 250 日</option><option value="C">自定义</option><option value="off">关闭</option></select><input type="number" id="medN" min="2" value="90" hidden aria-label="自定义中位线窗口"></label>
         <label>视图 <select id="mode"><option value="kline">K 线（蜡烛图）</option><option value="line">收盘线（实线）</option><option value="cum">累计涨跌</option></select></label>
       </div>
@@ -286,7 +286,7 @@ function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;"
 
 let D = null, CAL = [], CI = {};
 const S = {view: "main", idx: "000001", cmp: [], adds: [], period: "D", N: 7, range: "Y1", from: null, to: null, mode: "kline",
-  overlay: "vs", vsg: ["全部"], medType: "exp", medN: 90, corrWin: "range", corrSeries: "vs", flowGroup: "宽基组合", flowMode: "mkt", evFilter: "all", ev: null, evU: null};
+  overlay: "sh", vsg: ["全部"], medType: "exp", medN: 90, corrWin: "range", corrSeries: "vs", flowGroup: "宽基组合", flowMode: "mkt", evFilter: "all", ev: null, evU: null};
 const SEC = {}, CACHE = {}, BUNDLE = {};
 let mcp = null, db = null;
 
@@ -307,7 +307,7 @@ function decodeHash(h) {
     else if (t[0] === "p") { const v = t.slice(1); if (/^N\d+$/.test(v) && !["N5","N10","N15","N20","N30","N60"].includes(v)) { S.period = "NC"; S.N = +v.slice(1); } else S.period = v; }
     else if (t[0] === "r") { const v = t.slice(1); if (/^\d{8}$/.test(v) && /^\d{8}$/.test(parts[i + 1] || "")) { S.range = "CUSTOM"; S.from = v.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); S.to = parts[++i].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); } else S.range = v; }
     else if (t[0] === "m") S.mode = t[1] === "c" ? "cum" : t[1] === "l" ? "line" : "kline";
-    else if (t[0] === "o") S.overlay = ["vs", "sh", "ntk", "none"].includes(t.slice(1)) ? t.slice(1) : "vs";
+    else if (t[0] === "o") S.overlay = ["vs", "sh", "ntk", "none"].includes(t.slice(1)) ? t.slice(1) : "sh";
     else if (t[0] === "x") S.cmp = t.slice(1).split("x").filter(Boolean);
     else if (t[0] === "a") S.adds = t.slice(1).split("a").filter(Boolean);
     else if (t[0] === "e") S.evU = t.slice(1);
