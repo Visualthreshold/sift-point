@@ -196,7 +196,6 @@ details.fold>summary .eyebrow{display:block}
       <div class="vspick" id="vsPick"></div>
       <div class="legend" id="legend"></div>
       <div class="readout" id="readout">—</div>
-      <div class="muted" id="axisNote" style="font-size:12px;line-height:1.6;margin:4px 0 2px"></div>
       <div id="chMain" class="chartbox" style="height:420px"></div>
       <div class="foot"><span id="mainFoot"></span><span>拖动或双指缩放回看历史 · 中国交易日收盘</span></div>
       <details class="calc"><summary>计算口径</summary><div id="calcText"></div></details>
@@ -484,19 +483,19 @@ function renderMain(ks, x) {
   const leg = [];
   const g0 = grid(330);
   if (S.mode !== "cum") {
-    ys.push(yAxis(g0, "点位", "right", {splitLine: {show: true, lineStyle: {color: colors().line, opacity: .5}}}));
+    ys.push(yAxis(g0, `${meta.name || S.idx} 点位（K 线）`, "right", {splitLine: {show: true, lineStyle: {color: colors().line, opacity: .5}}, nameTextStyle: {color: idxColor(S.idx, 0)}}));
     if (base) { const ps = priceSeries(base.name, base, ks, g0, 0, C.up, C.down, idxColor(S.idx, 0), false); series.push(ps); leg.push([S.mode === "line" ? idxColor(S.idx, 0) : C.up, ps.name]); }
     if (S.overlay === "vs") {
-      ys.push(yAxis(g0, "成交量强度", "left", {splitLine: {show: false}}));
+      ys.push(yAxis(g0, "成交量强度（100 = 前 20 日均量）", "left", {splitLine: {show: false}}));
       for (const g of S.vsg) { const a = vsArr(g); if (!a) continue; const col = vsColor(g);
         if (S.medType !== "off") { const m = vsMed(g); series.push({name: `${g} 成交量中位线`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(m.m, k))), showSymbol: false, lineStyle: {width: 1.8, color: col}}); leg.push([col, `${vsName(g)} 成交量中位线（${medLabel()}）· 左轴`]); }
         else { series.push({name: `${g} 成交量强度`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(meanVal(a.v, k))), showSymbol: false, lineStyle: {width: 1.2, color: col}}); leg.push([col, `${vsName(g)} 成交量强度 · 左轴`]); } }
     } else if (S.overlay === "sh") {
-      ys.push(yAxis(g0, "份额指数（起点=100）", "left", {splitLine: {show: false}}));
+      ys.push(yAxis(g0, `${S.vsg.length === 1 ? (S.vsg[0] === "全部" ? "全部宽基" : S.vsg[0]) + " " : ""}ETF 份额指数（起点 = 100）`, "left", {splitLine: {show: false}, nameTextStyle: {color: S.vsg.length === 1 ? vsColor(S.vsg[0]) : C.muted}}));
       for (const g of S.vsg) { const a = shArr(g); if (!a) continue; const col = vsColor(g);
         series.push({name: `${g} 份额指数`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${shName(g)} · 拆并调整份额指数 · 左轴`]); }
     } else if (S.overlay === "ntk") {
-      ys.push(yAxis(g0, "亿元", "left", {splitLine: {show: false}}));
+      ys.push(yAxis(g0, "汇金估算持仓（亿元）", "left", {splitLine: {show: false}}));
       series.push({name: "汇金估算持仓 K 线", type: "candlestick", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => aggOHLC(n, k) || "-"), itemStyle: {color: "transparent", color0: C.nt, borderColor: C.nt, borderColor0: C.nt}, barMaxWidth: 10}); leg.push([C.nt, "汇金估算持仓 K 线（模型估算）· 左轴"]);
       if (md) { series.push({name: "汇金持仓市值中位线", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(md.m, k))), showSymbol: false, lineStyle: {width: 1.4, type: "dashed", color: C.nt}}); leg.push([C.nt, `汇金持仓市值中位线（${medLabel()}）`]); }
     }
@@ -505,7 +504,7 @@ function renderMain(ks, x) {
     const cum = s => { let b0 = null; return ks.map(k => { const c = lastVal(s.c, k); if (c != null && b0 == null) b0 = prevVal(s.c, k) ?? c; return c != null && b0 ? +((c / b0 - 1) * 100).toFixed(3) : null; }); };
     let ci = 0; for (const c of cmp) { const s = idxSeries(c); if (s) { const col = idxColor(c, ci++); series.push({name: s.name, type: "line", xAxisIndex: g0, yAxisIndex: 0, data: cum(s), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, s.name]); } }
     let ai = 0; for (const c of S.adds) { const s = secSeries(c); if (s) { const col = idxColor(c, ai++); series.push({name: s.name + " " + c, type: "line", xAxisIndex: g0, yAxisIndex: 0, data: cum(s), showSymbol: false, lineStyle: {width: 1.2, color: col}}); leg.push([col, s.name + " " + c]); } }
-    if (S.overlay === "sh") { ys.push(yAxis(g0, "份额指数", "right", {splitLine: {show: false}}));
+    if (S.overlay === "sh") { ys.push(yAxis(g0, "ETF 份额指数（起点 = 100）", "right", {splitLine: {show: false}}));
       for (const g of S.vsg) { const a = shArr(g); if (!a) continue; const col = vsColor(g);
         series.push({name: `${g} 份额指数`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${shName(g)} · 份额指数 · 右轴`]); } }
     else if (S.overlay === "ntk") { ys.push(yAxis(g0, "亿元", "right", {splitLine: {show: false}}));
@@ -518,7 +517,7 @@ function renderMain(ks, x) {
   if (S.overlay === "sh") {
     const g = S.vsg[0], c = chg20(g);
     if (c) {
-      const gd = grid(110), yi = ys.length; ys.push(yAxis(gd, "近 20 日份额 %", "right", {splitNumber: 2}));
+      const gd = grid(110), yi = ys.length; ys.push(yAxis(gd, "近 20 日份额变化 %", "right", {splitNumber: 2}));
       const CB = "#e0a64a", CS = "#a274e8", CN = "rgba(140,140,140,.45)";
       const data = ks.map(k => { let i = -1; for (let t = k.i1; t >= k.i0; t--) if (c.s[t] != null) { i = t; break; } if (i < 0) return null; const sv = c.s[i], pv = c.p[i];
         const col = pv == null ? CN : sv > 0 && pv < 0 ? CB : sv < 0 && pv > 0 ? CS : CN; return {value: +(sv * 100).toFixed(2), itemStyle: {color: col}}; });
@@ -536,21 +535,14 @@ function renderMain(ks, x) {
   if (S.mode !== "cum") for (const c of cmp.slice(1)) { const s = idxSeries(c); if (!s) continue; const col = idxColor(c, 0); ys.push({type: "value", gridIndex: g0, scale: true, show: false}); const ps = priceSeries(s.name, s, ks, g0, ys.length - 1, col, col, col, true); series.push(ps); leg.push([col, ps.name + (S.mode === "line" ? "" : "（实心涨 / 空心跌）") + " · 独立刻度"]); }
   // 加入标的（K 线模式下各一图）
   let aj = 0; if (S.mode !== "cum") for (const c of S.adds) { const s = secSeries(c); if (!s) continue; const col = idxColor(c, aj++); ys.push({type: "value", gridIndex: g0, scale: true, show: false}); const ps = priceSeries(`${s.name} ${c}`, s, ks, g0, ys.length - 1, col, col, col, true); series.push(ps); leg.push([col, `${ps.name}（${SEC[c]?.adj || ""}）· 独立刻度`]); }
+  for (const y of ys) if (y.show !== false && y.name) Object.assign(y, {nameLocation: "middle", nameRotate: 90, nameGap: 46, nameTextStyle: Object.assign({}, y.nameTextStyle, {align: "center", fontSize: 11})});
+  for (const g of grids) { g.left = 72; g.right = 72; }
   xs[xs.length - 1].axisLabel.show = true;
   $("#chMain").style.height = (top + 46) + "px";
   const ch = chart("chMain"); ch.resize();
   ch.setOption(Object.assign(baseOpt(ks), {grid: grids, xAxis: xs, yAxis: ys, series, dataZoom: [Object.assign(baseOpt().dataZoom[0], {xAxisIndex: xs.map((_, i) => i)}),
       {type: "slider", xAxisIndex: xs.map((_, i) => i), startValue: ZW.a, endValue: ZW.b, height: 24, bottom: 6, brushSelect: false, borderColor: C.line, fillerColor: "rgba(127,127,127,.18)", handleStyle: {color: C.acc}, moveHandleStyle: {color: C.acc}, textStyle: {color: C.muted, fontSize: 10}, labelFormatter: (v) => x[v] || ""}],
     tooltip: Object.assign(baseOpt().tooltip, {formatter: () => ""}), axisPointer: {link: [{xAxisIndex: "all"}], label: {backgroundColor: C.muted}}}), true);
-  const AN = [];
-  if (S.mode === "cum") AN.push("左轴：累计涨跌 %，以视图起点为 0，+10 表示比起点涨了 10%");
-  else AN.push("右轴：指数点位（收盘价），对应 K 线");
-  if (S.overlay === "sh") { AN.push((S.mode === "cum" ? "右轴" : "左轴") + "：ETF 份额指数，起点 = 100，300 表示份额靠申购增长到起点的 3 倍；线往上 = 净申购，往下 = 净赎回");
-    AN.push("下方副图右轴：近 20 个交易日份额变化 %，+5 表示比 20 个交易日前多 5%，−5 表示少 5%"); }
-  else if (S.overlay === "vs") AN.push((S.mode === "cum" ? "右轴" : "左轴") + "：成交量强度，100 = 前 20 个交易日平均成交额，150 表示放量 50%，80 表示缩量 20%");
-  else if (S.overlay === "ntk") AN.push((S.mode === "cum" ? "右轴" : "左轴") + "：汇金估算持仓市值，单位亿元");
-  if (S.mode !== "cum" && (S.cmp.some(c => c !== S.idx) || S.adds.length)) AN.push("多选的指数和标的各用独立刻度，不显示坐标数值，悬停看读数栏");
-  $("#axisNote").textContent = "坐标说明 · " + AN.join("；");
   const L = $("#legend"); L.textContent = ""; for (const [c, t] of leg) L.append(el("span", {}, el("i", {style: `background:${c}`}), t));
   ch.off("updateAxisPointer"); ch.on("updateAxisPointer", e => { const ax = (e.axesInfo || [])[0]; if (ax && ax.value != null) readout(ks, Math.round(ax.value)); });
   ch.off("click"); ch.on("click", p => { if (p.seriesName === "事件" && p.data) { S.ev = p.data.evs[0]; showEvent(p.data.evs); pushHash(); } });
