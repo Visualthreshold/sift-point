@@ -738,7 +738,7 @@ async function thsKline(code) {
 }
 async function loadSec(it) {
   try {
-    if (it.file) { BUNDLE[it.file] = BUNDLE[it.file] || fetch(it.file).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }); const j = (await BUNDLE[it.file])[it.code]; if (!j) throw new Error("分包中无此代码"); SEC[secKey(it)] = {name: it.name || j.name, rows: j.rows, adj: j.adj, src: j.source}; return true; }
+    if (it.file) { BUNDLE[it.file] = BUNDLE[it.file] || fetch(it.file, {cache: "no-cache"}).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }); const j = (await BUNDLE[it.file])[it.code]; if (!j) throw new Error("分包中无此代码"); SEC[secKey(it)] = {name: it.name || j.name, rows: j.rows, adj: j.adj, src: j.source}; return true; }
     try { toast("正在从同花顺获取行情…"); const p = await thsKline(it.code); SEC[secKey(it)] = {name: it.name || p.name, rows: p.rows, adj: "前复权", src: "同花顺公开日线（二手转载）"}; return true; } catch (e) { if (!mcp) throw e; }
     if (mcp) { toast("正在从本机服务获取行情…"); const res = await mcp.callTool(HOST_MCP, "get_daily_kline", {code: it.code, market: it.market || undefined, kind: it.kind || "stock", adj: "qfq"}); const p = res.payload || {}; if (!p.rows || !p.rows.length) throw new Error("无行情"); SEC[secKey(it)] = {name: it.name || p.name, rows: p.rows, adj: p.adj, src: p.source}; return true; }
     toast("该标的未预置行情；在 Mac 的 Claude App 中打开可实时获取"); return false;
@@ -795,7 +795,7 @@ function bind() {
 }
 async function boot() {
   decodeHash(location.hash); bind();
-  try { const r = await fetch("data/site.json"); if (!r.ok) throw new Error("HTTP " + r.status); D = await r.json(); }
+  try { const r = await fetch("data/site.json", {cache: "no-cache"}); if (!r.ok) throw new Error("HTTP " + r.status); D = await r.json(); }
   catch (e) { $("#hmeta").textContent = "数据未接通：" + e.message; $("#tiles").append(el("div", {class: "gap", text: "数据文件未能加载：" + e.message})); return; }
   CAL = D.cal; CAL.forEach((d, i) => CI[d] = i);
   if (S.vsgIdx) { const gs = vsGroups(); S.vsg = S.vsgIdx.map(i => gs[i]).filter(Boolean); if (!S.vsg.length) S.vsg = ["全部"]; }
