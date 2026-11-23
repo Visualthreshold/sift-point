@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="国家队持仓观察">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="description" content="汇金与汇金资管宽基 ETF 持仓估算、五大指数相关性与事件研究（纸上研究，不构成买卖建议）">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -31,17 +31,7 @@
   --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
   color-scheme:light;
 }
-/* 深色主题（系统或 Claude App 为深色时）：墨绿石墨底；浅色主题：浅灰底 */
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0e1512; --panel:#16201c; --panel2:#121b17; --line:#28382f; --fg:#e5ece8; --muted:#9cafa5; --faint:#6f8278;
-  --accent:#3aa585; --accent-soft:#183329; --nt:#e2b24a; --vs:#a99af5; --teal:#e0a64a;
-  --up:#ef5b5f; --down:#2fb57d; --warn:#f0a03a; --bad:#ef6b5f; --ok:#3cc183;
-  --acc1:#e2b24a; --acc2:#a99af5; --acc3:#5cc3d1; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0e1512; --panel:#16201c; --panel2:#121b17; --line:#28382f; --fg:#e5ece8; --muted:#9cafa5; --faint:#6f8278;
-  --accent:#3aa585; --accent-soft:#183329; --nt:#e2b24a; --vs:#a99af5; --teal:#e0a64a;
-  --up:#ef5b5f; --down:#2fb57d; --warn:#f0a03a; --bad:#ef6b5f; --ok:#3cc183;
-  --acc1:#e2b24a; --acc2:#a99af5; --acc3:#5cc3d1; color-scheme:dark}
+/* 2026-11-23 Martin 要求：固定浅灰底，不随系统或 Claude App 深色切换 */
 *{box-sizing:border-box}
 html,body{background:var(--bg);color:var(--fg);overflow-x:hidden}
 body{font-family:var(--font);font-size:14px;line-height:1.55;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
