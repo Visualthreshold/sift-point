@@ -665,7 +665,7 @@ function renderStudy() {
 function renderCoverage() {
   const cl = $("#covLines"); cl.textContent = "";
   for (const c of FIVE) { const m = D.idx[c] || {}; const src = (D.sources.find(s => s.series.includes(c)) || {}); cl.append(el("span", {text: `${m.name || c} ${src.first || "—"} 至 ${src.last || "—"} · ${srcShort(m.src)}`})); }
-  const sh = D.sources.find(s => s.series.startsWith("沪市 ETF")) || {}; cl.append(el("span", {text: `可搜索行情 ${D.search.length} 只（Mac Claude App 内可搜全市场）· 沪市 ETF 逐日份额 ${sh.first || "—"} 起 · 基金报告具名持有人 ${D.reports.length} 份`}));
+  const sh = D.sources.find(s => s.series.startsWith("沪市 ETF")) || {}; cl.append(el("span", {text: `可搜索 ${D.search.length} 个代码（全部沪深 A 股，K 线取自同花顺公开日线）· 沪市 ETF 逐日份额 ${sh.first || "—"} 起 · 基金报告具名持有人 ${D.reports.length} 份`}));
   const b = $("#covBody"); b.textContent = ""; b.append(el("h3", {style: "font-size:14px;margin:8px 0 4px", text: "持仓证据覆盖率"})); const t = el("table");
   t.append(el("tr", {}, ...["跟踪指数", "ETF 数", "有具名证据", "证据规模占比", "最近具名披露（期末 / 首次披露）", "距今", "机构"].map((h, i) => el("th", {class: i && i < 4 ? "n" : "", text: h}))));
   for (const r of D.coverage) t.append(el("tr", {}, el("td", {text: `${r.group}（${r.index}）`}), el("td", {class: "n", text: r.n_etf}), el("td", {class: "n", text: r.n_evidence}), el("td", {class: "n", text: r.size_share == null ? "—" : (r.size_share * 100).toFixed(1) + "%"}), el("td", {text: r.last_period ? `${r.last_period} / ${r.last_disclosed}` : "无"}), el("td", {class: "n", text: r.age_days == null ? "—" : r.age_days + " 天"}), el("td", {text: (r.accounts || []).join("、") || "—"})));
@@ -714,20 +714,33 @@ async function doSearch() {
   const q = $("#q").value; let items = localSearch(q);
   if (mcp && q.trim().length >= 2) { try { const res = await mcp.callTool(HOST_MCP, "search_security", {q: q.trim()}); for (const it of (res.payload || {}).items || []) if (!items.find(x => x.code === it.code)) items.push(it); } catch (e) { /* 本机服务不可用时只用预置列表 */ } }
   qItems = items.slice(0, 14); qOn = -1; const ul = $("#qres"); ul.textContent = ""; if (!q.trim()) { ul.hidden = true; return; }
-  if (!qItems.length) ul.append(el("li", {}, el("span", {class: "muted", text: mcp ? "未找到匹配代码" : "预置范围内未找到（可搜五大指数、60 只宽基 ETF 和汇金持股市值前 120 的个股）"})));
+  if (!qItems.length) ul.append(el("li", {}, el("span", {class: "muted", text: mcp ? "未找到匹配代码" : "未找到（可搜全部沪深 A 股、主要指数和 60 只宽基 ETF）"})));
   qItems.forEach(it => { const li = el("li", {}, el("span", {class: "mono", text: it.code}), el("span", {text: it.name || ""}), el("small", {text: `${{SH: "上交所", SZ: "深交所", BJ: "北交所"}[it.market] || ""} · ${{stock: "A 股", etf: "ETF", index: "指数"}[it.kind] || ""}`})); li.addEventListener("mousedown", e => { e.preventDefault(); pick(it); }); ul.append(li); });
   ul.hidden = false;
 }
+function secKey(it) { return it.kind !== "index" && D.idx[it.code] ? it.code + "." + it.market : it.code; }
 async function pick(it) {
   $("#qres").hidden = true; $("#q").value = "";
-  if (D.idx[it.code]) { if (it.code !== S.idx && !S.cmp.includes(it.code)) S.cmp.push(it.code); refresh(); return; }
-  if (!SEC[it.code] && !(await loadSec(it))) return;
-  if (!S.adds.includes(it.code)) S.adds.push(it.code); refresh();
+  if (it.kind === "index" && D.idx[it.code]) { if (it.code !== S.idx && !S.cmp.includes(it.code)) S.cmp.push(it.code); refresh(); return; }
+  const key = secKey(it);
+  if (!SEC[key] && !(await loadSec(it))) return;
+  if (!S.adds.includes(key)) S.adds.push(key); refresh();
+}
+/* 同花顺公开日线（前复权，无需登录，允许浏览器跨域读取）。price 每 4 个一组：低, 开-低, 高-低, 收-低（单位 1/priceFactor） */
+async function thsKline(code) {
+  const r = await fetch(`https://d.10jqka.com.cn/v6/line/hs_${code}/01/all.js`); if (!r.ok) throw new Error("同花顺 HTTP " + r.status);
+  const t = await r.text(); const j = JSON.parse(t.slice(t.indexOf("(") + 1, t.lastIndexOf(")")));
+  const pf = +j.priceFactor || 100, pr = j.price.split(",").filter(x => x !== "").map(Number), vol = (j.volumn || "").split(","), md = j.dates.split(","), yrs = [];
+  for (const [y, n] of j.sortYear) for (let i = 0; i < n; i++) yrs.push(y);
+  const rows = []; for (let i = 0; i < md.length; i++) { const d = `${yrs[i]}-${md[i].slice(0, 2)}-${md[i].slice(2)}`; if (d < "2008-01-01") continue; const lo = pr[4 * i], f = v => +((lo + v) / pf).toFixed(3);
+    rows.push([d, f(pr[4 * i + 1]), f(pr[4 * i + 2]), +(lo / pf).toFixed(3), f(pr[4 * i + 3]), vol[i] ? +vol[i] : null]); }
+  if (!rows.length) throw new Error("同花顺无行情"); return {name: j.name, rows};
 }
 async function loadSec(it) {
   try {
-    if (it.file) { BUNDLE[it.file] = BUNDLE[it.file] || fetch(it.file).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }); const j = (await BUNDLE[it.file])[it.code]; if (!j) throw new Error("分包中无此代码"); SEC[it.code] = {name: it.name || j.name, rows: j.rows, adj: j.adj, src: j.source}; return true; }
-    if (mcp) { toast("正在从本机服务获取行情…"); const res = await mcp.callTool(HOST_MCP, "get_daily_kline", {code: it.code, market: it.market || undefined, kind: it.kind || "stock", adj: "qfq"}); const p = res.payload || {}; if (!p.rows || !p.rows.length) throw new Error("无行情"); SEC[it.code] = {name: it.name || p.name, rows: p.rows, adj: p.adj, src: p.source}; return true; }
+    if (it.file) { BUNDLE[it.file] = BUNDLE[it.file] || fetch(it.file).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }); const j = (await BUNDLE[it.file])[it.code]; if (!j) throw new Error("分包中无此代码"); SEC[secKey(it)] = {name: it.name || j.name, rows: j.rows, adj: j.adj, src: j.source}; return true; }
+    try { toast("正在从同花顺获取行情…"); const p = await thsKline(it.code); SEC[secKey(it)] = {name: it.name || p.name, rows: p.rows, adj: "前复权", src: "同花顺公开日线（二手转载）"}; return true; } catch (e) { if (!mcp) throw e; }
+    if (mcp) { toast("正在从本机服务获取行情…"); const res = await mcp.callTool(HOST_MCP, "get_daily_kline", {code: it.code, market: it.market || undefined, kind: it.kind || "stock", adj: "qfq"}); const p = res.payload || {}; if (!p.rows || !p.rows.length) throw new Error("无行情"); SEC[secKey(it)] = {name: it.name || p.name, rows: p.rows, adj: p.adj, src: p.source}; return true; }
     toast("该标的未预置行情；在 Mac 的 Claude App 中打开可实时获取"); return false;
   } catch (e) { toast("行情获取失败：" + (e.code || e.message || e)); return false; }
 }
@@ -790,7 +803,7 @@ async function boot() {
   $("#flowGroup").append(el("option", {value: "宽基组合", text: "宽基组合"})); for (const g of Object.keys(D.groups)) $("#flowGroup").append(el("option", {value: g, text: g + "方向"}));
   if (S.flowGroup !== "宽基组合" && !D.groups[S.flowGroup]) S.flowGroup = "宽基组合";
   const m = D.meta; $("#hmeta").textContent = `行情截至 ${m.index_last} · ETF 份额 ${m.shares_last || "未接通"} · 最近具名持仓 ${m.named_last} · 更新 ${m.updated_vancouver}（温哥华）`; $("#introDate").textContent = m.index_last;
-  for (const c of S.adds) { const hit = D.search.find(r => r[0] === c); if (hit) await loadSec({code: hit[0], name: hit[1], market: hit[2], kind: hit[3], file: hit[4]}); }
+  for (const c of S.adds) { const [cc, mk] = c.split("."); const hit = D.search.find(r => r[0] === cc && (mk ? r[2] === mk && r[3] !== "index" : true)); if (hit) await loadSec({code: hit[0], name: hit[1], market: hit[2], kind: hit[3], file: hit[4]}); }
   S.adds = S.adds.filter(c => SEC[c]);
   refresh();
   if (window.claude && window.claude.use) { window.claude.use("mcp").then(x => { mcp = x; }).catch(() => {}); window.claude.use("db").then(x => { db = x; if (S.view === "data") renderSubs(); }).catch(() => {}); }
