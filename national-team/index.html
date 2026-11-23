@@ -709,7 +709,7 @@ async function renderSubs() {
 
 /* ---------- 搜索 ---------- */
 let qTimer = null, qItems = [], qOn = -1;
-function localSearch(q) { q = q.trim().toLowerCase(); if (!q) return []; return D.search.filter(r => r[0].includes(q) || (r[1] || "").toLowerCase().includes(q)).slice(0, 12).map(r => ({code: r[0], name: r[1], market: r[2], kind: r[3], file: r[4]})); }
+function localSearch(q) { q = q.trim().toLowerCase(); if (!q) return []; return D.search.filter(r => r[0].includes(q) || (r[1] || "").toLowerCase().includes(q)).sort((a, b) => (a[0] !== q) - (b[0] !== q) || (a[3] === "index") - (b[3] === "index")).slice(0, 12).map(r => ({code: r[0], name: r[1], market: r[2], kind: r[3], file: r[4]})); }
 async function doSearch() {
   const q = $("#q").value; let items = localSearch(q);
   if (mcp && q.trim().length >= 2) { try { const res = await mcp.callTool(HOST_MCP, "search_security", {q: q.trim()}); for (const it of (res.payload || {}).items || []) if (!items.find(x => x.code === it.code)) items.push(it); } catch (e) { /* 本机服务不可用时只用预置列表 */ } }
@@ -786,7 +786,7 @@ function bind() {
   on("#overlay", v => { S.overlay = v; if (v === "sh" && S.vsg.length === 1 && S.vsg[0] === "全部") { const g = Object.keys(D.groups).find(x => D.groups[x].index === S.idx && D.groups[x].shares?.length); if (g) S.vsg = [g]; } }); on("#medType", v => S.medType = v); on("#medN", v => S.medN = Math.max(2, v | 0)); on("#mode", v => S.mode = v);
   on("#corrWin", v => S.corrWin = v); on("#corrSeries", v => S.corrSeries = v); on("#flowGroup", v => S.flowGroup = v); on("#flowMode", v => S.flowMode = v); on("#evFilter", v => S.evFilter = v);
   $("#q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(doSearch, 250); });
-  $("#q").addEventListener("keydown", e => { const lis = [...$("#qres").children]; if (e.key === "ArrowDown") qOn = Math.min(qItems.length - 1, qOn + 1); else if (e.key === "ArrowUp") qOn = Math.max(0, qOn - 1); else if (e.key === "Enter") { if (qItems[Math.max(0, qOn)]) pick(qItems[Math.max(0, qOn)]); return; } else if (e.key === "Escape") { $("#qres").hidden = true; return; } else return; lis.forEach((li, i) => li.classList.toggle("on", i === qOn)); e.preventDefault(); });
+  $("#q").addEventListener("keydown", e => { const lis = [...$("#qres").children]; if (e.key === "ArrowDown") qOn = Math.min(qItems.length - 1, qOn + 1); else if (e.key === "ArrowUp") qOn = Math.max(0, qOn - 1); else if (e.key === "Enter") { e.preventDefault(); (async () => { if (qOn < 0) { clearTimeout(qTimer); await doSearch(); } const it = qItems[Math.max(0, qOn)]; if (it) pick(it); else toast("未找到该代码"); })(); return; } else if (e.key === "Escape") { $("#qres").hidden = true; return; } else return; lis.forEach((li, i) => li.classList.toggle("on", i === qOn)); e.preventDefault(); });
   $("#q").addEventListener("blur", () => setTimeout(() => $("#qres").hidden = true, 150));
   $("#qgo").onclick = async () => { await doSearch(); if (qItems[0]) pick(qItems[0]); };
   $("#share").onclick = async () => { const url = ARTIFACT_URL + "#" + encodeHash(); try { await navigator.clipboard.writeText(url); toast("已复制直达链接"); } catch (e) { const i = el("input", {value: url, style: "width:100%;margin-top:6px"}); $("header.top .wrap").append(i); i.select(); toast("请手动复制链接"); } };
