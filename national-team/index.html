@@ -186,7 +186,8 @@ details.fold>summary .eyebrow{display:block}
           <option value="M3">近 3 个月</option><option value="M6">近 6 个月</option><option value="YTD">年初至今</option><option value="Y1" selected>近 1 年</option><option value="Y3">近 3 年</option><option value="Y5">近 5 年</option><option value="Y10">近 10 年</option><option value="ALL">2008 年至今</option><option value="CUSTOM">自选日期</option>
         </select></label>
         <span id="customRange" hidden><input type="date" id="from" aria-label="起始日"> – <input type="date" id="to" aria-label="截止日"></span>
-        <label>叠加 <select id="overlay"><option value="sh">ETF 份额 + 指数</option><option value="vs">宽基 ETF 成交量强度</option><option value="ntk">汇金估算持仓 K 线</option><option value="mg">两市融资余额</option><option value="none">不叠加</option></select></label>
+        <label>叠加 <select id="overlay"><option value="sh">ETF 份额 + 指数</option><option value="vs">宽基 ETF 成交量强度</option><option value="ntk">汇金估算持仓 K 线</option><option value="none">不叠加</option></select></label>
+        <button class="btn" id="lrOn" type="button" aria-pressed="false" title="与任意叠加项同时显示，独立刻度">两融余额</button>
         <label>综合中位线 <select id="medType"><option value="exp">全历史</option><option value="10">滚动 10 日</option><option value="15">滚动 15 日</option><option value="20">滚动 20 日</option><option value="60">滚动 60 日</option><option value="120">滚动 120 日</option><option value="250">滚动 250 日</option><option value="C">自定义</option><option value="off">关闭</option></select><input type="number" id="medN" min="2" value="90" hidden aria-label="自定义中位线窗口"></label>
         <label>视图 <select id="mode"><option value="kline">K 线（蜡烛图）</option><option value="line">收盘线（实线）</option><option value="cum">累计涨跌</option></select></label>
       </div>
@@ -291,7 +292,7 @@ function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;"
 
 let D = null, CAL = [], CI = {};
 const S = {view: "main", idx: "000001", cmp: [], adds: [], period: "D", N: 7, range: "Y1", from: null, to: null, mode: "kline",
-  overlay: "sh", vsg: ["全部"], medType: "exp", medN: 90, corrWin: "range", corrSeries: "vs", flowGroup: "宽基组合", flowMode: "mkt", evFilter: "all", ev: null, evU: null};
+  overlay: "sh", vsg: ["全部"], medType: "exp", medN: 90, corrWin: "range", corrSeries: "vs", flowGroup: "宽基组合", flowMode: "mkt", evFilter: "all", ev: null, evU: null, lr: false};
 const SEC = {}, CACHE = {}, BUNDLE = {};
 let mcp = null, db = null;
 
@@ -299,6 +300,7 @@ let mcp = null, db = null;
 function encodeHash() {
   const p = [S.view === "data" ? "data" : "d", S.idx, "p" + (S.period === "NC" ? "N" + S.N : S.period), "r" + (S.range === "CUSTOM" ? (S.from || "").replace(/-/g, "") + "-" + (S.to || "").replace(/-/g, "") : S.range), "m" + (S.mode === "cum" ? "c" : S.mode === "line" ? "l" : "k"), "o" + S.overlay];
   if (S.vsg.length && !(S.vsg.length === 1 && S.vsg[0] === "全部") && D) p.push("g" + S.vsg.map(g => vsGroups().indexOf(g)).filter(i => i >= 0).join("x"));
+  if (S.lr) p.push("L1");
   if (S.cmp.length) p.push("x" + S.cmp.join("x"));
   if (S.adds.length) p.push("a" + S.adds.join("a"));
   if (S.ev != null && D && D.events[S.ev]) p.push("e" + D.events[S.ev].uid);
@@ -306,13 +308,14 @@ function encodeHash() {
 }
 function decodeHash(h) {
   const parts = (h || "").replace(/^#/, "").split("-"); if (!parts[0]) return;
-  S.view = parts[0] === "data" ? "data" : "main";
+  S.view = parts[0] === "data" ? "data" : "main"; S.lr = false;
   for (let i = 1; i < parts.length; i++) { const t = parts[i];
     if (/^\d{6}$/.test(t)) S.idx = t;
     else if (t[0] === "p") { const v = t.slice(1); if (/^N\d+$/.test(v) && !["N5","N10","N15","N20","N30","N60"].includes(v)) { S.period = "NC"; S.N = +v.slice(1); } else S.period = v; }
     else if (t[0] === "r") { const v = t.slice(1); if (/^\d{8}$/.test(v) && /^\d{8}$/.test(parts[i + 1] || "")) { S.range = "CUSTOM"; S.from = v.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); S.to = parts[++i].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); } else S.range = v; }
     else if (t[0] === "m") S.mode = t[1] === "c" ? "cum" : t[1] === "l" ? "line" : "kline";
-    else if (t[0] === "o") S.overlay = ["vs", "sh", "ntk", "mg", "none"].includes(t.slice(1)) ? t.slice(1) : "sh";
+    else if (t === "L1") S.lr = true;
+    else if (t[0] === "o") { const v = t.slice(1); if (v === "mg") { S.overlay = "sh"; S.lr = true; } else S.overlay = ["vs", "sh", "ntk", "none"].includes(v) ? v : "sh"; }
     else if (t[0] === "x") S.cmp = t.slice(1).split("x").filter(Boolean);
     else if (t[0] === "a") S.adds = t.slice(1).split("a").filter(Boolean);
     else if (t[0] === "e") S.evU = t.slice(1);
@@ -396,7 +399,7 @@ function vsArr(g) { if (g === "全部") { const n = nt(); return {v: n.vs, n: n.
 function vsName(g) { return g === "全部" ? "全部宽基（60 只等权）" : `${g}（${(D.nt.vsg[g] || {}).codes?.length || 0} 只合计成交额）`; }
 function vsColor(g) { return VS_COL[Math.max(0, vsGroups().indexOf(g)) % VS_COL.length]; }
 function vsMed(g) { const key = "md" + g + S.medType + S.medN; if (CACHE[key]) return CACHE[key]; const a = vsArr(g); return CACHE[key] = a ? medianDaily(a.v) : null; }
-function mgArr() { if (CACHE.mg) return CACHE.mg; const rows = D.margin || []; if (!rows.length) return null; return CACHE.mg = {t: dense(rows, 1), h: dense(rows, 2), s: dense(rows, 3), b: dense(rows, 4)}; }
+function mgArr() { if (CACHE.mg) return CACHE.mg; const rows = D.margin || []; if (!rows.length) return null; return CACHE.mg = {t: dense(rows, 1), h: dense(rows, 2), s: dense(rows, 3), b: dense(rows, 4), r: dense(rows, 5)}; }
 function mgChg(a, k) { const v = lastVal(a, k); if (v == null) return null; for (let i = k.i0 - 1; i >= Math.max(0, k.i0 - 15); i--) if (a[i] != null) return v - a[i]; return null; }
 function shArr(g) { const key = "sh" + g; if (CACHE[key]) return CACHE[key]; const rows = g === "全部" ? D.nt.sh_all : D.groups[g]?.shares; if (!rows || !rows.length) return null; const v = dense(rows, 1), n = dense(rows, 2); let f = null; for (let i = rows.length - 1; i >= 0; i--) if (rows[i][2] != null && rows[i][1]) { f = rows[i][2] / rows[i][1]; break; } return CACHE[key] = {v, n, y: f == null ? v : v.map(x => x == null ? null : +(x * f).toFixed(2))}; }
 function shName(g) { return g === "全部" ? "全部宽基 ETF 份额" : `${g} ETF 份额（${(D.groups[g] || {}).etfs?.length || 0} 只合计）`; }
@@ -505,10 +508,6 @@ function renderMain(ks, x) {
       ys.push(yAxis(g0, "汇金估算持仓（亿元）", "left", {splitLine: {show: false}}));
       series.push({name: "汇金估算持仓 K 线", type: "candlestick", large: false, progressive: 0, xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => aggOHLC(n, k) || "-"), itemStyle: {color: "transparent", color0: C.nt, borderColor: C.nt, borderColor0: C.nt}, barMaxWidth: 10}); leg.push([C.nt, "汇金估算持仓 K 线（模型估算）· 左轴"]);
       if (md) { series.push({name: "汇金持仓市值中位线", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(md.m, k))), showSymbol: false, lineStyle: {width: 1.4, type: "dashed", color: C.nt}}); leg.push([C.nt, `汇金持仓市值中位线（${medLabel()}）`]); }
-    } else if (S.overlay === "mg") {
-      const a = mgArr();
-      if (a) { ys.push(yAxis(g0, "两市融资余额（亿元）", "left", {splitLine: {show: false}, nameTextStyle: {color: C.nt}}));
-        series.push({name: "两市融资余额", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.t, k))), showSymbol: false, connectNulls: true, lineStyle: {width: 1.6, color: C.nt}}); leg.push([C.nt, `沪深两市融资余额（亿元，截至 ${D.meta.margin_last || "—"}，T+1 公布）· 左轴`]); }
     }
   } else {
     ys.push(yAxis(g0, "累计涨跌 %", "left"));
@@ -520,12 +519,14 @@ function renderMain(ks, x) {
         series.push({name: `${g} ETF 份额`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.y, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${shName(g)} · 亿份 · 右轴`]); } }
     else if (S.overlay === "ntk") { ys.push(yAxis(g0, "亿元", "right", {splitLine: {show: false}}));
       series.push({name: "汇金估算持仓市值", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(n.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: C.nt}}); leg.push([C.nt, "汇金估算持仓市值 · 右轴"]); }
-    else if (S.overlay === "mg" && mgArr()) { const a = mgArr(); ys.push(yAxis(g0, "两市融资余额（亿元）", "right", {splitLine: {show: false}}));
-      series.push({name: "两市融资余额", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.t, k))), showSymbol: false, connectNulls: true, lineStyle: {width: 1.6, color: C.nt}}); leg.push([C.nt, "沪深两市融资余额 · 右轴"]); }
     else if (S.overlay === "vs") { ys.push(yAxis(g0, "成交量强度", "right", {splitLine: {show: false}}));
       for (const g of S.vsg) { const a = vsArr(g); if (!a) continue; const col = vsColor(g); const m = S.medType !== "off" ? vsMed(g) : null;
         series.push({name: `${g} 成交量${m ? "中位线" : "强度"}`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(m ? lastVal(m.m, k) : meanVal(a.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${vsName(g)} 成交量${m ? "中位线（" + medLabel() + "）" : "强度"} · 右轴`]); } }
   }
+  // 两融余额：独立开关，可与任意叠加项同时显示（独立刻度，读数见上方）
+  if (S.lr) { const a = mgArr(); if (a && a.r.some(v => v != null)) { ys.push({type: "value", gridIndex: g0, scale: true, show: false}); const col = "#c2410c";
+    series.push({name: "两融余额", type: "line", xAxisIndex: g0, yAxisIndex: ys.length - 1, data: ks.map(k => r2(lastVal(a.r, k))), showSymbol: false, connectNulls: true, z: 4, lineStyle: {width: 1.8, color: col}});
+    leg.push([col, `两融余额（沪深融资 + 融券，亿元，截至 ${D.meta.margin_last || "—"}，T+1 公布）· 独立刻度`]); } }
   // 份额 × 指数背离副图（简化）：柱高 = 近 20 日份额变化 %，颜色 = 与指数同期方向的关系
   if (S.overlay === "sh") {
     const g = S.vsg[0], c = chg20(g);
@@ -588,8 +589,8 @@ function readout(ks, bi) {
   if (S.overlay === "vs") for (const g of S.vsg) { const a = vsArr(g); if (!a) continue; const v = meanVal(a.v, k), md2 = S.medType !== "off" ? vsMed(g) : null, m = md2 ? lastVal(md2.m, k) : null; parts.push(`${g} 强度 ${fmt(v)}` + (m != null && v != null ? ` / 中位 ${fmt(m)}（${pct(v / m - 1)}）` : "") + (a.amt && lastVal(a.amt, k) != null ? ` / 成交 ${fmt(sumVal(a.amt, k))} 亿` : "")); }
   else if (S.overlay === "sh") for (const g of S.vsg) { const a = shArr(g), c = chg20(g); if (!a) continue; const v = lastVal(a.v, k), sh = lastVal(a.n, k), cs = c ? lastVal(c.s, k) : null, cp = c ? lastVal(c.p, k) : null;
     parts.push(`${g} ETF 份额 ${fmt(lastVal(a.y, k))} 亿份` + (cs != null ? ` / 近 20 日份额 ${pct(cs)}、指数 ${pct(cp)}` + (cs > 0 && cp < 0 ? "（逆势申购）" : cs < 0 && cp > 0 ? "（趁涨赎回）" : "（同向）") : "")); }
-  else if (S.overlay === "mg") { const a = mgArr(); if (a) { const v = lastVal(a.t, k), c = mgChg(a.t, k); parts.push(v == null ? `两市融资余额 —（截至 ${D.meta.margin_last || "—"}，T+1 公布）` : `两市融资余额 ${fmt(v)} 亿` + (c != null ? `（当期 ${c >= 0 ? "+" : ""}${fmt(c)} 亿）` : "")); } }
   else if (S.overlay === "ntk") { const v = lastVal(n.v, k), m = CACHE.md ? lastVal(CACHE.md.m, k) : null; parts.push(`汇金估算持仓 ${fmt(v)} 亿` + (m != null && v != null ? ` · 中位数 ${fmt(m)} 亿 · 差额 ${fmt(v - m)} 亿 · 偏离 ${pct(v / m - 1)} · 样本 ${lastVal(CACHE.md.n, k)} 日` : "")); }
+  if (S.lr) { const a = mgArr(); if (a) { const v = lastVal(a.r, k), c = mgChg(a.r, k); parts.push(v == null ? `两融余额 —（最新 ${D.meta.margin_last || "—"}，T+1 公布）` : `两融余额 ${fmt(v)} 亿` + (c != null ? `（当期 ${c >= 0 ? "+" : ""}${fmt(c)}）` : "")); } }
   for (const c of [...S.cmp.filter(c => c !== S.idx), ...S.adds]) { const s = secSeries(c); if (s) { const r = periodRet(s, k); parts.push(`${s.name} ${fmt(lastVal(s.c, k))}${r != null ? " " + pct(r) : ""}`); } }
   $("#readout").textContent = parts.join(" · ");
 }
@@ -620,7 +621,7 @@ function renderMG(ks, x) {
              {name: "两市融资余额", type: "line", yAxisIndex: 0, data: bal, showSymbol: false, connectNulls: true, lineStyle: {width: 1.5, color: C.nt}}]}), true);
   const rows = D.margin || [], L = rows[rows.length - 1];
   const nAgo = n => { const r = rows[rows.length - 1 - n]; return r && L ? L[1] - r[1] : null; };
-  $("#mgKpi").innerHTML = L ? `截至 <b>${CAL[L[0]]}</b>：<b>${fmt(L[1])}</b> 亿（沪 ${fmt(L[2])} · 深 ${fmt(L[3])}${L[4] != null ? ` · 北交所另计 ${fmt(L[4])}` : ""}）· 近 5 日 ${fmt(nAgo(5))} · 20 日 ${fmt(nAgo(20))} 亿 · 官方核对${D.meta.margin_check ? "一致" : "未通过或未取得"}` : "";
+  $("#mgKpi").innerHTML = L ? `截至 <b>${CAL[L[0]]}</b>：<b>${fmt(L[1])}</b> 亿（沪 ${fmt(L[2])} · 深 ${fmt(L[3])}${L[4] != null ? ` · 北交所另计 ${fmt(L[4])}` : ""}）${L[5] != null ? ` · 两融（含融券）<b>${fmt(L[5])}</b> 亿` : ""}· 近 5 日 ${fmt(nAgo(5))} · 20 日 ${fmt(nAgo(20))} 亿 · 官方核对${D.meta.margin_check ? "一致" : "未通过或未取得"}` : "";
   cardReadout(ch, "#roMG", ks, k => { const i = ks.indexOf(k); return bal[i] == null ? `${k.label} · 尚未公布（融资余额 T+1 公布，最新 ${D.meta.margin_last || "—"}）` : `${k.label} · 两市融资余额 ${fmt(bal[i])} 亿` + (chg[i] != null ? ` · 当期 ${chg[i] >= 0 ? "+" : ""}${fmt(chg[i])} 亿` : "") + (lastVal(a.h, k) != null ? `（沪 ${fmt(lastVal(a.h, k))} · 深 ${fmt(lastVal(a.s, k))}）` : ""); });
 }
 function renderHold(ks, x) {
@@ -813,7 +814,7 @@ function renderTags() {
 function syncControls() {
   $("#period").value = S.period; $("#periodN").hidden = S.period !== "NC"; $("#periodN").value = S.N;
   $("#range").value = S.range; $("#customRange").hidden = S.range !== "CUSTOM"; if (S.from) $("#from").value = S.from; if (S.to) $("#to").value = S.to;
-  $("#overlay").value = S.overlay; $("#medType").value = S.medType; $("#medN").hidden = S.medType !== "C"; $("#mode").value = S.mode;
+  $("#overlay").value = S.overlay; $("#lrOn").setAttribute("aria-pressed", String(S.lr)); $("#medType").value = S.medType; $("#medN").hidden = S.medType !== "C"; $("#mode").value = S.mode;
   $("#corrWin").value = S.corrWin; $("#corrSeries").value = S.corrSeries; $("#flowGroup").value = S.flowGroup; $("#flowMode").value = S.flowMode; $("#evFilter").value = S.evFilter;
   $("#tab-main").setAttribute("aria-pressed", String(S.view === "main")); $("#tab-data").setAttribute("aria-pressed", String(S.view === "data"));
   $("#v-main").hidden = S.view !== "main"; $("#v-data").hidden = S.view !== "data";
@@ -843,6 +844,7 @@ function bind() {
   $("#q").addEventListener("keydown", e => { const lis = [...$("#qres").children]; if (e.key === "ArrowDown") qOn = Math.min(qItems.length - 1, qOn + 1); else if (e.key === "ArrowUp") qOn = Math.max(0, qOn - 1); else if (e.key === "Enter") { e.preventDefault(); (async () => { if (qOn < 0) { clearTimeout(qTimer); await doSearch(); } const it = qItems[Math.max(0, qOn)]; if (it) pick(it); else toast("未找到该代码"); })(); return; } else if (e.key === "Escape") { $("#qres").hidden = true; return; } else return; lis.forEach((li, i) => li.classList.toggle("on", i === qOn)); e.preventDefault(); });
   $("#q").addEventListener("blur", () => setTimeout(() => $("#qres").hidden = true, 150));
   $("#qgo").onclick = async () => { await doSearch(); if (qItems[0]) pick(qItems[0]); };
+  $("#lrOn").onclick = () => { S.lr = !S.lr; refresh(); };
   $("#share").onclick = async () => { const url = ARTIFACT_URL + "#" + encodeHash(); try { await navigator.clipboard.writeText(url); toast("已复制直达链接"); } catch (e) { const i = el("input", {value: url, style: "width:100%;margin-top:6px"}); $("header.top .wrap").append(i); i.select(); toast("请手动复制链接"); } };
   window.addEventListener("hashchange", () => { decodeHash(location.hash); if (S.evU) { const j = D.events.findIndex(e => e.uid === S.evU); S.ev = j >= 0 ? j : null; } refresh(); });
   window.addEventListener("resize", () => Object.values(CH).forEach(c => c.resize()));
