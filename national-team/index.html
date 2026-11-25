@@ -175,7 +175,7 @@ details.fold>summary .eyebrow{display:block}
   <div class="grid2">
     <div class="card">
       <p class="eyebrow">市场走势</p>
-      <div class="sechead"><h2 class="t" id="mainTitle">—</h2><span class="muted mono" id="mainSrc" style="font-size:12px"></span></div>
+      <div class="sechead"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 class="t" id="mainTitle">—</h2><button class="btn" id="lrOn" type="button" aria-pressed="false" title="在主图上单独叠加两市两融余额 K 线（独立刻度），可与任意叠加项同时显示">两融余额 K 线</button></div><span class="muted mono" id="mainSrc" style="font-size:12px"></span></div>
       <div class="ctrls">
         <label>周期 <select id="period">
           <option value="D">日线</option><option value="W">周线</option><option value="M">月线</option><option value="Q">季线</option><option value="H">半年线</option><option value="Y">年线</option>
@@ -187,7 +187,6 @@ details.fold>summary .eyebrow{display:block}
         </select></label>
         <span id="customRange" hidden><input type="date" id="from" aria-label="起始日"> – <input type="date" id="to" aria-label="截止日"></span>
         <label>叠加 <select id="overlay"><option value="sh">ETF 份额 + 指数</option><option value="vs">宽基 ETF 成交量强度</option><option value="ntk">汇金估算持仓 K 线</option><option value="none">不叠加</option></select></label>
-        <button class="btn" id="lrOn" type="button" aria-pressed="false" title="与任意叠加项同时显示，独立刻度">两融余额</button>
         <label>综合中位线 <select id="medType"><option value="exp">全历史</option><option value="10">滚动 10 日</option><option value="15">滚动 15 日</option><option value="20">滚动 20 日</option><option value="60">滚动 60 日</option><option value="120">滚动 120 日</option><option value="250">滚动 250 日</option><option value="C">自定义</option><option value="off">关闭</option></select><input type="number" id="medN" min="2" value="90" hidden aria-label="自定义中位线窗口"></label>
         <label>视图 <select id="mode"><option value="kline">K 线（蜡烛图）</option><option value="line">收盘线（实线）</option><option value="cum">累计涨跌</option></select></label>
       </div>
@@ -399,7 +398,9 @@ function vsArr(g) { if (g === "全部") { const n = nt(); return {v: n.vs, n: n.
 function vsName(g) { return g === "全部" ? "全部宽基（60 只等权）" : `${g}（${(D.nt.vsg[g] || {}).codes?.length || 0} 只合计成交额）`; }
 function vsColor(g) { return VS_COL[Math.max(0, vsGroups().indexOf(g)) % VS_COL.length]; }
 function vsMed(g) { const key = "md" + g + S.medType + S.medN; if (CACHE[key]) return CACHE[key]; const a = vsArr(g); return CACHE[key] = a ? medianDaily(a.v) : null; }
-function mgArr() { if (CACHE.mg) return CACHE.mg; const rows = D.margin || []; if (!rows.length) return null; return CACHE.mg = {t: dense(rows, 1), h: dense(rows, 2), s: dense(rows, 3), b: dense(rows, 4), r: dense(rows, 5)}; }
+function mgArr() { if (CACHE.mg) return CACHE.mg; const rows = D.margin || []; if (!rows.length) return null; const r = dense(rows, 5), rk = {o: [], h: [], l: [], c: r}; let p = null;
+  for (let i = 0; i < r.length; i++) { const v = r[i]; if (v == null) continue; const o = p ?? v; rk.o[i] = o; rk.h[i] = Math.max(o, v); rk.l[i] = Math.min(o, v); p = v; }
+  return CACHE.mg = {t: dense(rows, 1), h: dense(rows, 2), s: dense(rows, 3), b: dense(rows, 4), r, rk}; }
 function mgChg(a, k) { const v = lastVal(a, k); if (v == null) return null; for (let i = k.i0 - 1; i >= Math.max(0, k.i0 - 15); i--) if (a[i] != null) return v - a[i]; return null; }
 function shArr(g) { const key = "sh" + g; if (CACHE[key]) return CACHE[key]; const rows = g === "全部" ? D.nt.sh_all : D.groups[g]?.shares; if (!rows || !rows.length) return null; const v = dense(rows, 1), n = dense(rows, 2); let f = null; for (let i = rows.length - 1; i >= 0; i--) if (rows[i][2] != null && rows[i][1]) { f = rows[i][2] / rows[i][1]; break; } return CACHE[key] = {v, n, y: f == null ? v : v.map(x => x == null ? null : +(x * f).toFixed(2))}; }
 function shName(g) { return g === "全部" ? "全部宽基 ETF 份额" : `${g} ETF 份额（${(D.groups[g] || {}).etfs?.length || 0} 只合计）`; }
@@ -524,9 +525,12 @@ function renderMain(ks, x) {
         series.push({name: `${g} 成交量${m ? "中位线" : "强度"}`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(m ? lastVal(m.m, k) : meanVal(a.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${vsName(g)} 成交量${m ? "中位线（" + medLabel() + "）" : "强度"} · 右轴`]); } }
   }
   // 两融余额：独立开关，可与任意叠加项同时显示（独立刻度，读数见上方）
-  if (S.lr) { const a = mgArr(); if (a && a.r.some(v => v != null)) { ys.push({type: "value", gridIndex: g0, scale: true, show: false}); const col = "#c2410c";
-    series.push({name: "两融余额", type: "line", xAxisIndex: g0, yAxisIndex: ys.length - 1, data: ks.map(k => r2(lastVal(a.r, k))), showSymbol: false, connectNulls: true, z: 4, lineStyle: {width: 1.8, color: col}});
-    leg.push([col, `两融余额（沪深融资 + 融券，亿元，截至 ${D.meta.margin_last || "—"}，T+1 公布）· 独立刻度`]); } }
+  if (S.lr) { const a = mgArr(); if (a && a.r.some(v => v != null)) { ys.push({type: "value", gridIndex: g0, scale: true, show: false}); const col = "#c2410c", yi = ys.length - 1;
+    if (S.mode === "kline") { series.push({name: "两融余额 K 线", type: "candlestick", large: false, progressive: 0, barMaxWidth: 10, xAxisIndex: g0, yAxisIndex: yi, z: 4, data: ks.map(k => aggOHLC(a.rk, k) || "-"),
+        itemStyle: {color: col, color0: "transparent", borderColor: col, borderColor0: col}});
+      leg.push([col, `两融余额 K 线（实心增 / 空心减；开盘 = 上期末余额，沪深融资 + 融券，亿元，截至 ${D.meta.margin_last || "—"}，T+1 公布）· 独立刻度`]); }
+    else { series.push({name: "两融余额", type: "line", xAxisIndex: g0, yAxisIndex: yi, data: ks.map(k => r2(lastVal(a.r, k))), showSymbol: false, connectNulls: true, z: 4, lineStyle: {width: 1.8, color: col}});
+      leg.push([col, `两融余额（沪深融资 + 融券，亿元，截至 ${D.meta.margin_last || "—"}，T+1 公布）· 独立刻度`]); } } }
   // 份额 × 指数背离副图（简化）：柱高 = 近 20 日份额变化 %，颜色 = 与指数同期方向的关系
   if (S.overlay === "sh") {
     const g = S.vsg[0], c = chg20(g);
@@ -590,7 +594,7 @@ function readout(ks, bi) {
   else if (S.overlay === "sh") for (const g of S.vsg) { const a = shArr(g), c = chg20(g); if (!a) continue; const v = lastVal(a.v, k), sh = lastVal(a.n, k), cs = c ? lastVal(c.s, k) : null, cp = c ? lastVal(c.p, k) : null;
     parts.push(`${g} ETF 份额 ${fmt(lastVal(a.y, k))} 亿份` + (cs != null ? ` / 近 20 日份额 ${pct(cs)}、指数 ${pct(cp)}` + (cs > 0 && cp < 0 ? "（逆势申购）" : cs < 0 && cp > 0 ? "（趁涨赎回）" : "（同向）") : "")); }
   else if (S.overlay === "ntk") { const v = lastVal(n.v, k), m = CACHE.md ? lastVal(CACHE.md.m, k) : null; parts.push(`汇金估算持仓 ${fmt(v)} 亿` + (m != null && v != null ? ` · 中位数 ${fmt(m)} 亿 · 差额 ${fmt(v - m)} 亿 · 偏离 ${pct(v / m - 1)} · 样本 ${lastVal(CACHE.md.n, k)} 日` : "")); }
-  if (S.lr) { const a = mgArr(); if (a) { const v = lastVal(a.r, k), c = mgChg(a.r, k); parts.push(v == null ? `两融余额 —（最新 ${D.meta.margin_last || "—"}，T+1 公布）` : `两融余额 ${fmt(v)} 亿` + (c != null ? `（当期 ${c >= 0 ? "+" : ""}${fmt(c)}）` : "")); } }
+  if (S.lr) { const a = mgArr(); if (a) { const v = lastVal(a.r, k), c = mgChg(a.r, k); const q = aggOHLC(a.rk, k); parts.push(v == null ? `两融余额 —（最新 ${D.meta.margin_last || "—"}，T+1 公布）` : `两融余额 ${fmt(v)} 亿` + (c != null ? `（当期 ${c >= 0 ? "+" : ""}${fmt(c)}` + (q && k.i1 > k.i0 ? `，期内高 ${fmt(q[3])} / 低 ${fmt(q[2])}` : "") + "）" : "")); } }
   for (const c of [...S.cmp.filter(c => c !== S.idx), ...S.adds]) { const s = secSeries(c); if (s) { const r = periodRet(s, k); parts.push(`${s.name} ${fmt(lastVal(s.c, k))}${r != null ? " " + pct(r) : ""}`); } }
   $("#readout").textContent = parts.join(" · ");
 }
