@@ -127,6 +127,7 @@ section[hidden]{display:none}
 .chip .x{border:0;background:none;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .chip .x:hover{color:var(--bad)}
 .vspick{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted);margin:0 0 6px}
+.vspick[hidden]{display:none}
 .vspick b{color:var(--fg);font-weight:500;margin-right:2px}
 .vspick label{display:inline-flex;gap:4px;align-items:center;cursor:pointer}
 .vspick i{display:inline-block;width:12px;height:3px;border-radius:2px}
@@ -185,7 +186,7 @@ details.fold>summary .eyebrow{display:block}
           <option value="M3">近 3 个月</option><option value="M6">近 6 个月</option><option value="YTD">年初至今</option><option value="Y1" selected>近 1 年</option><option value="Y3">近 3 年</option><option value="Y5">近 5 年</option><option value="Y10">近 10 年</option><option value="ALL">2008 年至今</option><option value="CUSTOM">自选日期</option>
         </select></label>
         <span id="customRange" hidden><input type="date" id="from" aria-label="起始日"> – <input type="date" id="to" aria-label="截止日"></span>
-        <label>叠加 <select id="overlay"><option value="sh">ETF 份额 + 指数</option><option value="vs">宽基 ETF 成交量强度</option><option value="ntk">汇金估算持仓 K 线</option><option value="none">不叠加</option></select></label>
+        <label>叠加 <select id="overlay"><option value="sh">ETF 份额 + 指数</option><option value="vs">宽基 ETF 成交量强度</option><option value="ntk">汇金估算持仓 K 线</option><option value="mg">两市融资余额</option><option value="none">不叠加</option></select></label>
         <label>综合中位线 <select id="medType"><option value="exp">全历史</option><option value="10">滚动 10 日</option><option value="15">滚动 15 日</option><option value="20">滚动 20 日</option><option value="60">滚动 60 日</option><option value="120">滚动 120 日</option><option value="250">滚动 250 日</option><option value="C">自定义</option><option value="off">关闭</option></select><input type="number" id="medN" min="2" value="90" hidden aria-label="自定义中位线窗口"></label>
         <label>视图 <select id="mode"><option value="kline">K 线（蜡烛图）</option><option value="line">收盘线（实线）</option><option value="cum">累计涨跌</option></select></label>
       </div>
@@ -223,6 +224,13 @@ details.fold>summary .eyebrow{display:block}
       <div class="legend"><span><i style="background:var(--teal)"></i>每日收盘后合成值</span><span id="vsKpi"></span></div>
       <div class="readout" id="roVS">—</div>
       <div id="chVS" class="chartbox" style="height:220px"></div>
+    </div>
+    <div class="card">
+      <p class="eyebrow">全市场杠杆资金 · 亿元</p>
+      <h2 class="t">两市融资余额</h2>
+      <div class="legend"><span><i style="background:var(--nt)"></i>沪深两市融资余额合计 · 右轴</span><span><i style="background:var(--up)"></i><i style="background:var(--down)"></i>当期净增减（融资买入 − 偿还）· 左轴</span><span id="mgKpi"></span></div>
+      <div class="readout" id="roMG">—</div>
+      <div id="chMG" class="chartbox" style="height:240px"></div>
     </div>
     <div class="pair">
       <div class="card">
@@ -304,7 +312,7 @@ function decodeHash(h) {
     else if (t[0] === "p") { const v = t.slice(1); if (/^N\d+$/.test(v) && !["N5","N10","N15","N20","N30","N60"].includes(v)) { S.period = "NC"; S.N = +v.slice(1); } else S.period = v; }
     else if (t[0] === "r") { const v = t.slice(1); if (/^\d{8}$/.test(v) && /^\d{8}$/.test(parts[i + 1] || "")) { S.range = "CUSTOM"; S.from = v.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); S.to = parts[++i].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); } else S.range = v; }
     else if (t[0] === "m") S.mode = t[1] === "c" ? "cum" : t[1] === "l" ? "line" : "kline";
-    else if (t[0] === "o") S.overlay = ["vs", "sh", "ntk", "none"].includes(t.slice(1)) ? t.slice(1) : "sh";
+    else if (t[0] === "o") S.overlay = ["vs", "sh", "ntk", "mg", "none"].includes(t.slice(1)) ? t.slice(1) : "sh";
     else if (t[0] === "x") S.cmp = t.slice(1).split("x").filter(Boolean);
     else if (t[0] === "a") S.adds = t.slice(1).split("a").filter(Boolean);
     else if (t[0] === "e") S.evU = t.slice(1);
@@ -388,6 +396,8 @@ function vsArr(g) { if (g === "全部") { const n = nt(); return {v: n.vs, n: n.
 function vsName(g) { return g === "全部" ? "全部宽基（60 只等权）" : `${g}（${(D.nt.vsg[g] || {}).codes?.length || 0} 只合计成交额）`; }
 function vsColor(g) { return VS_COL[Math.max(0, vsGroups().indexOf(g)) % VS_COL.length]; }
 function vsMed(g) { const key = "md" + g + S.medType + S.medN; if (CACHE[key]) return CACHE[key]; const a = vsArr(g); return CACHE[key] = a ? medianDaily(a.v) : null; }
+function mgArr() { if (CACHE.mg) return CACHE.mg; const rows = D.margin || []; if (!rows.length) return null; return CACHE.mg = {t: dense(rows, 1), h: dense(rows, 2), s: dense(rows, 3), b: dense(rows, 4)}; }
+function mgChg(a, k) { const v = lastVal(a, k); if (v == null) return null; for (let i = k.i0 - 1; i >= Math.max(0, k.i0 - 15); i--) if (a[i] != null) return v - a[i]; return null; }
 function shArr(g) { const key = "sh" + g; if (CACHE[key]) return CACHE[key]; const rows = g === "全部" ? D.nt.sh_all : D.groups[g]?.shares; if (!rows || !rows.length) return null; const v = dense(rows, 1), n = dense(rows, 2); let f = null; for (let i = rows.length - 1; i >= 0; i--) if (rows[i][2] != null && rows[i][1]) { f = rows[i][2] / rows[i][1]; break; } return CACHE[key] = {v, n, y: f == null ? v : v.map(x => x == null ? null : +(x * f).toFixed(2))}; }
 function shName(g) { return g === "全部" ? "全部宽基 ETF 份额" : `${g} ETF 份额（${(D.groups[g] || {}).etfs?.length || 0} 只合计）`; }
 const DIV_W = 20; // 份额 / 指数对照窗口：近 20 个交易日
@@ -495,6 +505,10 @@ function renderMain(ks, x) {
       ys.push(yAxis(g0, "汇金估算持仓（亿元）", "left", {splitLine: {show: false}}));
       series.push({name: "汇金估算持仓 K 线", type: "candlestick", large: false, progressive: 0, xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => aggOHLC(n, k) || "-"), itemStyle: {color: "transparent", color0: C.nt, borderColor: C.nt, borderColor0: C.nt}, barMaxWidth: 10}); leg.push([C.nt, "汇金估算持仓 K 线（模型估算）· 左轴"]);
       if (md) { series.push({name: "汇金持仓市值中位线", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(md.m, k))), showSymbol: false, lineStyle: {width: 1.4, type: "dashed", color: C.nt}}); leg.push([C.nt, `汇金持仓市值中位线（${medLabel()}）`]); }
+    } else if (S.overlay === "mg") {
+      const a = mgArr();
+      if (a) { ys.push(yAxis(g0, "两市融资余额（亿元）", "left", {splitLine: {show: false}, nameTextStyle: {color: C.nt}}));
+        series.push({name: "两市融资余额", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.t, k))), showSymbol: false, connectNulls: true, lineStyle: {width: 1.6, color: C.nt}}); leg.push([C.nt, `沪深两市融资余额（亿元，截至 ${D.meta.margin_last || "—"}，T+1 公布）· 左轴`]); }
     }
   } else {
     ys.push(yAxis(g0, "累计涨跌 %", "left"));
@@ -506,6 +520,8 @@ function renderMain(ks, x) {
         series.push({name: `${g} ETF 份额`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.y, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${shName(g)} · 亿份 · 右轴`]); } }
     else if (S.overlay === "ntk") { ys.push(yAxis(g0, "亿元", "right", {splitLine: {show: false}}));
       series.push({name: "汇金估算持仓市值", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(n.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: C.nt}}); leg.push([C.nt, "汇金估算持仓市值 · 右轴"]); }
+    else if (S.overlay === "mg" && mgArr()) { const a = mgArr(); ys.push(yAxis(g0, "两市融资余额（亿元）", "right", {splitLine: {show: false}}));
+      series.push({name: "两市融资余额", type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(lastVal(a.t, k))), showSymbol: false, connectNulls: true, lineStyle: {width: 1.6, color: C.nt}}); leg.push([C.nt, "沪深两市融资余额 · 右轴"]); }
     else if (S.overlay === "vs") { ys.push(yAxis(g0, "成交量强度", "right", {splitLine: {show: false}}));
       for (const g of S.vsg) { const a = vsArr(g); if (!a) continue; const col = vsColor(g); const m = S.medType !== "off" ? vsMed(g) : null;
         series.push({name: `${g} 成交量${m ? "中位线" : "强度"}`, type: "line", xAxisIndex: g0, yAxisIndex: 1, data: ks.map(k => r2(m ? lastVal(m.m, k) : meanVal(a.v, k))), showSymbol: false, lineStyle: {width: 1.6, color: col}}); leg.push([col, `${vsName(g)} 成交量${m ? "中位线（" + medLabel() + "）" : "强度"} · 右轴`]); } }
@@ -557,7 +573,7 @@ function onZoom(ch, ks) {
   if (a == null || b == null) { a = Math.round((dz.start || 0) / 100 * (n - 1)); b = Math.round((dz.end ?? 100) / 100 * (n - 1)); }
   a = Math.max(0, Math.min(n - 1, a)); b = Math.max(a, Math.min(n - 1, b));
   if (a === ZW.a && b === ZW.b && ZW.synced) return; ZW.a = a; ZW.b = b; ZW.synced = true;
-  for (const id of ["chVS", "chHold", "chFlow"]) if (CH[id]) { const o = (CH[id].getOption().dataZoom || [])[0] || {}; if (o.startValue !== a || o.endValue !== b) CH[id].dispatchAction({type: "dataZoom", dataZoomIndex: 0, startValue: a, endValue: b}); }
+  for (const id of ["chVS", "chMG", "chHold", "chFlow"]) if (CH[id]) { const o = (CH[id].getOption().dataZoom || [])[0] || {}; if (o.startValue !== a || o.endValue !== b) CH[id].dispatchAction({type: "dataZoom", dataZoomIndex: 0, startValue: a, endValue: b}); }
   const mo = (ch.getOption().dataZoom || []); if (mo[0] && (mo[0].startValue !== a || mo[0].endValue !== b)) ch.dispatchAction({type: "dataZoom", dataZoomIndex: 0, startValue: a, endValue: b});
   S.range = "CUSTOM"; S.from = CAL[ks[a].i0]; S.to = ks[b].label;
   $("#range").value = "CUSTOM"; $("#customRange").hidden = false; $("#from").value = S.from; $("#to").value = S.to;
@@ -572,6 +588,7 @@ function readout(ks, bi) {
   if (S.overlay === "vs") for (const g of S.vsg) { const a = vsArr(g); if (!a) continue; const v = meanVal(a.v, k), md2 = S.medType !== "off" ? vsMed(g) : null, m = md2 ? lastVal(md2.m, k) : null; parts.push(`${g} 强度 ${fmt(v)}` + (m != null && v != null ? ` / 中位 ${fmt(m)}（${pct(v / m - 1)}）` : "") + (a.amt && lastVal(a.amt, k) != null ? ` / 成交 ${fmt(sumVal(a.amt, k))} 亿` : "")); }
   else if (S.overlay === "sh") for (const g of S.vsg) { const a = shArr(g), c = chg20(g); if (!a) continue; const v = lastVal(a.v, k), sh = lastVal(a.n, k), cs = c ? lastVal(c.s, k) : null, cp = c ? lastVal(c.p, k) : null;
     parts.push(`${g} ETF 份额 ${fmt(lastVal(a.y, k))} 亿份` + (cs != null ? ` / 近 20 日份额 ${pct(cs)}、指数 ${pct(cp)}` + (cs > 0 && cp < 0 ? "（逆势申购）" : cs < 0 && cp > 0 ? "（趁涨赎回）" : "（同向）") : "")); }
+  else if (S.overlay === "mg") { const a = mgArr(); if (a) { const v = lastVal(a.t, k), c = mgChg(a.t, k); parts.push(v == null ? `两市融资余额 —（截至 ${D.meta.margin_last || "—"}，T+1 公布）` : `两市融资余额 ${fmt(v)} 亿` + (c != null ? `（当期 ${c >= 0 ? "+" : ""}${fmt(c)} 亿）` : "")); } }
   else if (S.overlay === "ntk") { const v = lastVal(n.v, k), m = CACHE.md ? lastVal(CACHE.md.m, k) : null; parts.push(`汇金估算持仓 ${fmt(v)} 亿` + (m != null && v != null ? ` · 中位数 ${fmt(m)} 亿 · 差额 ${fmt(v - m)} 亿 · 偏离 ${pct(v / m - 1)} · 样本 ${lastVal(CACHE.md.n, k)} 日` : "")); }
   for (const c of [...S.cmp.filter(c => c !== S.idx), ...S.adds]) { const s = secSeries(c); if (s) { const r = periodRet(s, k); parts.push(`${s.name} ${fmt(lastVal(s.c, k))}${r != null ? " " + pct(r) : ""}`); } }
   $("#readout").textContent = parts.join(" · ");
@@ -591,6 +608,20 @@ function renderVS(ks, x) {
   const k = ks[ks.length - 1];
   $("#vsKpi").textContent = gs.map(g => vsName(g)).join(" · ") + (k ? ` · 截至 ${k.label}` : "");
   cardReadout(ch, "#roVS", ks, k => `${k.label} · ` + gs.map(g => { const a = vsArr(g); return `${g} ${fmt(a ? meanVal(a.v, k) : null)}` + (a && lastVal(a.n, k) ? `（${lastVal(a.n, k)} 只）` : ""); }).join(" · "));
+}
+function renderMG(ks, x) {
+  const C = colors(), a = mgArr(), ch = chart("chMG");
+  if (!a) { $("#roMG").textContent = "融资余额数据未接通"; ch.clear(); return; }
+  const bal = ks.map(k => r2(lastVal(a.t, k))), chg = ks.map(k => r2(mgChg(a.t, k)));
+  ch.setOption(Object.assign(baseOpt(ks), {grid: {left: 8, right: 62, top: 10, bottom: 22}, xAxis: xAxis(x, 0, true),
+    yAxis: [Object.assign(slimY(""), {position: "right"}), Object.assign(slimY(""), {position: "left", splitLine: {show: false}, axisLabel: {show: false}})],
+    tooltip: Object.assign(baseOpt().tooltip, {formatter: () => ""}),
+    series: [{name: "当期净增减", type: "bar", yAxisIndex: 1, data: chg.map(v => v == null ? null : {value: v, itemStyle: {color: v >= 0 ? C.up : C.down, opacity: .55}}), barMaxWidth: 8},
+             {name: "两市融资余额", type: "line", yAxisIndex: 0, data: bal, showSymbol: false, connectNulls: true, lineStyle: {width: 1.5, color: C.nt}}]}), true);
+  const rows = D.margin || [], L = rows[rows.length - 1];
+  const nAgo = n => { const r = rows[rows.length - 1 - n]; return r && L ? L[1] - r[1] : null; };
+  $("#mgKpi").innerHTML = L ? `截至 <b>${CAL[L[0]]}</b>：<b>${fmt(L[1])}</b> 亿（沪 ${fmt(L[2])} · 深 ${fmt(L[3])}${L[4] != null ? ` · 北交所另计 ${fmt(L[4])}` : ""}）· 近 5 日 ${fmt(nAgo(5))} · 20 日 ${fmt(nAgo(20))} 亿 · 官方核对${D.meta.margin_check ? "一致" : "未通过或未取得"}` : "";
+  cardReadout(ch, "#roMG", ks, k => { const i = ks.indexOf(k); return bal[i] == null ? `${k.label} · 尚未公布（融资余额 T+1 公布，最新 ${D.meta.margin_last || "—"}）` : `${k.label} · 两市融资余额 ${fmt(bal[i])} 亿` + (chg[i] != null ? ` · 当期 ${chg[i] >= 0 ? "+" : ""}${fmt(chg[i])} 亿` : "") + (lastVal(a.h, k) != null ? `（沪 ${fmt(lastVal(a.h, k))} · 深 ${fmt(lastVal(a.s, k))}）` : ""); });
 }
 function renderHold(ks, x) {
   const C = colors(), n = nt();
@@ -794,7 +825,7 @@ function refresh() {
     renderTiles(); renderTags(); renderVsPick();
     const ks = BK; const vis = visBuckets(); ZW.synced = false; ZW.a = Math.max(0, ks.indexOf(vis[0])); ZW.b = Math.max(ZW.a, ks.indexOf(vis[vis.length - 1]));
     const x = ks.map(k => k.partial && S.period !== "D" ? k.label + "*" : k.label);
-    renderMain(ks, x); renderVS(ks, x); renderHold(ks, x); renderFlow(ks, x); renderCorr(vis); renderEvList(); renderStudy(); renderCoverage();
+    renderMain(ks, x); renderVS(ks, x); renderMG(ks, x); renderHold(ks, x); renderFlow(ks, x); renderCorr(vis); renderEvList(); renderStudy(); renderCoverage();
     if (S.ev != null) showEvent([S.ev]); else $("#evDetail").textContent = "";
     $("#calcText").innerHTML = "";
     $("#calcText").append(el("p", {text: "宽基 ETF 成交量强度：①全部宽基 = 观察池 60 只 ETF，每只当日成交量 ÷ 其前 20 个交易日均量 × 100，等权平均（至少 3 只入样）；②分指数（上证50、沪深300、中证500、中证1000、中证2000、科创50、科创100、科创综指、创业板指）= 跟踪同一指数、由不同基金公司发行的观察池 ETF 当日成交额（成交量 × 收盘价）加总，÷ 前 20 个交易日合计成交额均值 × 100。成交额只能按产品加总，无法识别买方是谁。周、月等周期取周期内日值的平均。"}),
